@@ -8,22 +8,6 @@ using System.Threading.Tasks;
 
 namespace Bursa
 {
-    class DummyIntTaskProvider
-    {
-        public int Value { get; set; }
-
-        public DummyIntTaskProvider(int t)
-        {
-            Value = t;
-        }
-
-        public async Task<int> GetTask()
-        {
-            await Task.Delay(300);
-            return Value++;
-        }
-    }
-
     class Program
     {
         static async Task Main(string[] args)
