@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Sopron.DataTypes
 {
@@ -13,6 +14,11 @@ namespace Sopron.DataTypes
         public RegexTrigger()
         {
 
+        }
+
+        public override bool Matches(string str)
+        {
+            return Regex.IsMatch(str, Expression);
         }
     }
 }

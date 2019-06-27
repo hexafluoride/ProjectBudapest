@@ -14,7 +14,8 @@ namespace Sopron.DataTypes
 
         public Documentation()
         {
-
+            Synopsis = new List<string>();
+            SeeAlso = new List<string>();
         }
     }
 }

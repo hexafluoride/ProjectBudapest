@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 using Sopron.DataTypes;
 using Sopron.Messages;
 using System;
@@ -52,14 +53,32 @@ namespace Sopron
                 return null;
 
             var type = TypeMap[type_name];
-            return obj.ToObject(type);
+            existingValue = existingValue ?? serializer.ContractResolver.ResolveContract(type).DefaultCreator();
+            serializer.Populate(new JTokenReader(obj), existingValue);
+            return existingValue;
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            var obj = JObject.FromObject(value) as JObject;
-            obj["type"] = value.GetType().Name;
-            obj.WriteTo(writer);
+            JsonObjectContract contract = (JsonObjectContract)serializer.ContractResolver.ResolveContract(value.GetType());
+
+            writer.WriteStartObject();
+            writer.WritePropertyName("type");
+            writer.WriteValue(value.GetType().Name);
+            foreach (var property in contract.Properties)
+            {
+                if (property.Ignored)
+                    continue;
+
+                writer.WritePropertyName(property.PropertyName);
+                serializer.Serialize(writer, property.ValueProvider.GetValue(value));
+                //writer.WriteValue(property.ValueProvider.GetValue(value));
+            }
+            writer.WriteEndObject();
+
+            //var obj = JObject.FromObject(value, serializer);
+            //obj["type"] = value.GetType().Name;
+            //obj.WriteTo(writer);
         }
     }
 }

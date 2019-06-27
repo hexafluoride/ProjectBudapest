@@ -5,8 +5,8 @@ using System.Text;
 namespace Sopron.DataTypes
 {
     [SopronDataType]
-    public class Trigger
+    public abstract class Trigger
     {
-
+        public abstract bool Matches(string message);
     }
 }

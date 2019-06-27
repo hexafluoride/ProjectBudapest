@@ -10,8 +10,11 @@ namespace Sopron.DataTypes
     {
         [JsonProperty("at")]
         public DateTime Time { get; set; }
-        public Uri Source { get; set; }
+        public Uri Location { get; set; }
         public Uri User { get; set; }
+        public Uri SelfIdentifier { get; set; }
+        public string Context { get; set; }
+
         [JsonProperty("message")]
         public string Contents { get; set; }
         [JsonProperty("raw")]

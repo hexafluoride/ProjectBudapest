@@ -12,5 +12,10 @@ namespace Sopron.DataTypes
         {
 
         }
+
+        public override bool Matches(string message)
+        {
+            return message.Substring(1).StartsWith(Name);
+        }
     }
 }
