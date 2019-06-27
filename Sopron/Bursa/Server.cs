@@ -66,6 +66,8 @@ namespace Bursa
                 SelfIdentifier = call.Message.SelfIdentifier
             };
 
+            WaitingCalls.Remove(result.CallId);
+
             await call.Source.SendMessage(reply);
         }
 
