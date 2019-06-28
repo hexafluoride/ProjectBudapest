@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace Bursa
 {
@@ -33,6 +34,14 @@ namespace Bursa
             await test.Handshake();
 
             test.HandleMessages();
+
+            await Task.Delay(5000);
+
+            // test connection closing
+            if(new Random().NextDouble() > 0.5)
+                server.Connections.First().Key.Close();
+            else
+                test.Connection.Close();
 
             await Task.Delay(-1);
         }

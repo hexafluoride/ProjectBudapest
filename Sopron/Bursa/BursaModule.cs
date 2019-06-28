@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Bursa
@@ -34,6 +35,10 @@ namespace Bursa
         public Dictionary<string, ReturningCommandHandler> CommandHandlers = new Dictionary<string, ReturningCommandHandler>();
 
         private HandlerDictionary<Type, MessageHandler> MessageHandlers = new HandlerDictionary<Type, MessageHandler>();
+
+        private ManualResetEvent Connected = new ManualResetEvent(false);
+        private string Hostname { get; set; }
+        private int Port { get; set; }
 
         public BursaModule()
         {
@@ -86,10 +91,41 @@ namespace Bursa
 
         public async Task Connect(string hostname, int port)
         {
+            Hostname = hostname;
+            Port = port;
+
             var client = new TcpClient();
             await client.ConnectAsync(hostname, port);
             Connection = new JsonConnection(client);
             Connection.Initialize();
+
+            Connection.ConnectionClosed += HandleConnectionClosed;
+        }
+
+        private void HandleConnectionClosed(object sender, ConnectionClosedEventArgs e)
+        {
+            Connected.Reset();
+
+            new Thread((ThreadStart)async delegate
+            {
+                // attempt to reconnect
+                while (!Connected.WaitOne(0))
+                {
+                    try { Connection.Client.Close(); } catch { }
+                    //Thread.Sleep(5000);
+                    try
+                    {
+                        await Connect(Hostname, Port);
+                        await Handshake();
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                }
+
+                Console.WriteLine("Reconnected");
+            }).Start();
         }
 
         public async Task Handshake()
@@ -110,6 +146,7 @@ namespace Bursa
                 throw new Exception($"Expected ServerHello, received {server_hello?.GetType()}");
 
             await RegisterCommands();
+            Connected.Set();
         }
 
         private async Task RegisterCommands()
@@ -133,6 +170,7 @@ namespace Bursa
         {
             while(true)
             {
+                Connected.WaitOne();
                 await HandleMessage();
             }
         }

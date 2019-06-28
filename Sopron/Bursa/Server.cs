@@ -97,6 +97,9 @@ namespace Bursa
 
         private async Task HandleSopronMessage(IConnection connection, object message)
         {
+            if (message == null)
+                return;
+
             var type = message.GetType();
 
             if (MessageHandlers.ContainsKey(type))
@@ -119,7 +122,20 @@ namespace Bursa
             Modules.Add(client);
             Connections[connection] = client;
             SopronMessageProcessor.Add(connection);
+
+            connection.ConnectionClosed += HandleConnectionClosed;
+
             await connection.Send(ServerHello);
+        }
+
+        private void HandleConnectionClosed(object sender, ConnectionClosedEventArgs e)
+        {
+            Console.WriteLine($"Purging {sender}");
+            var connection = sender as IConnection;
+
+            SopronMessageProcessor.Remove(connection);
+            Modules.Remove(Connections[connection]);
+            Connections.Remove(connection);
         }
 
         public void AddMessageSource(IMessageSource source) => MessageProcessor.Add(source);

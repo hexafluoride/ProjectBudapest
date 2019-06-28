@@ -58,7 +58,7 @@ namespace Bursa
             {
                 lock (Providers)
                 {
-                    foreach (var provider in Providers)
+                    foreach (var provider in Providers.ToList())
                     {
                         var new_task = TaskRetriever(provider);
                         TaskByProvider[provider] = new_task;
@@ -85,7 +85,8 @@ namespace Bursa
             }
             else if (finished_task.IsCompletedSuccessfully)
             {
-                TaskComplete?.Invoke(ProviderByTask[finished_task], finished_task.Result);
+                if(ProviderByTask.ContainsKey(finished_task)) // this provider might have been removed, check for that
+                    TaskComplete?.Invoke(ProviderByTask[finished_task], finished_task.Result);
             }
 
             lock (Providers)

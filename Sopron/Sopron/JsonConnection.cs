@@ -12,6 +12,8 @@ namespace Sopron
 {
     public class JsonConnection : IConnection
     {
+        public event OnConnectionClosed ConnectionClosed;
+
         public TcpClient Client { get; set; }
         private JsonTextReader Reader { get; set; }
         private JsonTextWriter Writer { get; set; }
@@ -21,6 +23,8 @@ namespace Sopron
         {
             Client = client;
         }
+
+        public void Close() => Client?.Client?.Close();
 
         public void Initialize()
         {
@@ -44,22 +48,42 @@ namespace Sopron
 
         public async Task<object> Receive()
         {
-            if (Reader.TokenType == JsonToken.EndObject)
-                await Reader.ReadAsync();
+            try
+            {
+                if (Reader.TokenType == JsonToken.EndObject)
+                    await Reader.ReadAsync();
 
-            var obj = (await JToken.ReadFromAsync(Reader)) as JObject;
+                var obj = (await JToken.ReadFromAsync(Reader)) as JObject;
 
-            Console.WriteLine(obj.ToString());
+                if (!obj.ContainsKey("type"))
+                    return null;
 
-            if (!obj.ContainsKey("type"))
+                var type = obj.Value<string>("type");
+
+                if (!SopronTypeJsonConverter.TypeMap.ContainsKey(type))
+                    return null;
+
+                return obj.ToObject(SopronTypeJsonConverter.TypeMap[type], Serializer);
+            }
+            catch (Exception ex)
+            {
+                if (ex is IOException || !Client.Connected)
+                {
+                    ConnectionClosed?.Invoke(this, new ConnectionClosedEventArgs(false));
+                }
+                else if (Client.Client.Poll(0, SelectMode.SelectRead))
+                {
+                    // if we haven't called .Close, Connected will always stay true
+                    // this takes care of that
+                    byte[] check = new byte[1];
+                    if (Client.Client.Receive(check, SocketFlags.Peek) == 0)
+                    {
+                        ConnectionClosed?.Invoke(this, new ConnectionClosedEventArgs(false));
+                    }
+                }
+
                 return null;
-
-            var type = obj.Value<string>("type");
-
-            if (!SopronTypeJsonConverter.TypeMap.ContainsKey(type))
-                return null;
-
-            return obj.ToObject(SopronTypeJsonConverter.TypeMap[type], Serializer);
+            }
         }
     }
 }

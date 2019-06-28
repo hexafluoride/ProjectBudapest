@@ -11,7 +11,7 @@ namespace Bursa
         [BursaDocumentation(DocumentationType.Synopsis, ".test")]
         public string Test(object sender, CommandHandlerEventArgs e)
         {
-            Console.WriteLine(e.Contents);
+            //Console.WriteLine(e.Contents);
             return "Test successful!";
         }
     }
