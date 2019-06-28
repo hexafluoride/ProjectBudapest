@@ -76,8 +76,6 @@ namespace Bursa
 
             var finished_task = await Task.WhenAny(Tasks);
 
-            Tasks.Remove(finished_task);
-
             if (finished_task == LoopCanceller)
             {
                 CancelFlag.Reset();
@@ -88,6 +86,10 @@ namespace Bursa
                 if(ProviderByTask.ContainsKey(finished_task)) // this provider might have been removed, check for that
                     TaskComplete?.Invoke(ProviderByTask[finished_task], finished_task.Result);
             }
+
+            Tasks.Remove(finished_task);
+            ProviderByTask.Remove(finished_task);
+            finished_task.Dispose();
 
             lock (Providers)
             {
