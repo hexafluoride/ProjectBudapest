@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -18,7 +19,12 @@ namespace Sopron.DataTypes
 
         public override bool Matches(string str)
         {
-            return Regex.IsMatch(str, Expression);
+            return Regex.IsMatch(str, Expression, RegexOptions.Compiled);
+        }
+
+        public override string RemoveMatch(string str)
+        {
+            return Regex.Replace(str, Expression, "");
         }
     }
 }

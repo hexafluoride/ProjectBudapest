@@ -23,6 +23,10 @@ namespace Bursa
 
         public AsyncProcessor()
         {
+            LoopCanceller = new Task<TTask>(() => {
+                CancelFlag.WaitOne();
+                return default;
+            });
         }
 
         public void Add(TTaskProvider provider)
@@ -50,6 +54,8 @@ namespace Bursa
                     Tasks.Remove(task);
                 }
             }
+
+            CancelFlag.Set();
         }
 
         public async Task Process()
@@ -65,6 +71,9 @@ namespace Bursa
                         ProviderByTask[new_task] = provider;
                         Tasks.Add(new_task);
                     }
+
+                    Tasks.Add(LoopCanceller);
+                    LoopCanceller.Start();
                 }
             }
 
@@ -79,21 +88,33 @@ namespace Bursa
             if (finished_task == LoopCanceller)
             {
                 CancelFlag.Reset();
-                LoopCanceller = new Task<TTask>(() => { CancelFlag.WaitOne(); return default; });
-            }
-            else if (finished_task.IsCompletedSuccessfully)
-            {
-                if(ProviderByTask.ContainsKey(finished_task)) // this provider might have been removed, check for that
-                    TaskComplete?.Invoke(ProviderByTask[finished_task], finished_task.Result);
-            }
+                LoopCanceller = new Task<TTask>(() => {
+                    CancelFlag.WaitOne();
+                    return default; });
 
-            Tasks.Remove(finished_task);
-            ProviderByTask.Remove(finished_task);
-            finished_task.Dispose();
+                Tasks.Add(LoopCanceller);
+                LoopCanceller.Start();
+            }
+            else
+            { 
+                if (finished_task.IsCompletedSuccessfully)
+                {
+                    if (ProviderByTask.ContainsKey(finished_task)) // this provider might have been removed, check for that
+                        TaskComplete?.Invoke(ProviderByTask[finished_task], finished_task.Result);
+                }
+
+                if (ProviderByTask.ContainsKey(finished_task)) // this provider might have been removed, check for that
+                {
+                    TaskByProvider.Remove(ProviderByTask[finished_task]);
+                    ProviderByTask.Remove(finished_task);
+                }
+
+                Tasks.Remove(finished_task);
+            }
 
             lock (Providers)
             {
-                foreach (var provider in Providers)
+                foreach (var provider in Providers.ToList())
                 {
                     if (TaskByProvider.ContainsKey(provider))
                         continue;

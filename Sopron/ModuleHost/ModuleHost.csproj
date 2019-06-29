@@ -7,12 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="IrcDotNet" Version="0.7.0" />
-    <PackageReference Include="System.Threading.Channels" Version="4.5.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Sopron\Sopron.csproj" />
+    <ProjectReference Include="..\Bursa\Bursa.csproj" />
   </ItemGroup>
 
 </Project>

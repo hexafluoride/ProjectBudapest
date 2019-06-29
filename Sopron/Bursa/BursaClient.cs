@@ -18,10 +18,13 @@ namespace Bursa
         public List<Command> Commands = new List<Command>();
         private HandlerDictionary<Type, MessageHandler> MessageHandlers = new HandlerDictionary<Type, MessageHandler>();
 
+        public DateTime Started { get; set; }
+
         public BursaClient(IConnection connection)
         {
             Connection = connection;
             MessageHandlers.Add(typeof(RegisterCommand), RegisterCommandHandler);
+            Started = DateTime.UtcNow;
         }
 
         public IEnumerable<Command> GetMatchingCommands(Message message)

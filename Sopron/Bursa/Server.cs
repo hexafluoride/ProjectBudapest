@@ -2,6 +2,7 @@
 using Sopron.DataTypes;
 using Sopron.Messages;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,7 +21,7 @@ namespace Bursa
         public Dictionary<IConnection, BursaClient> Connections = new Dictionary<IConnection, BursaClient>();
 
         private HandlerDictionary<Type, MessageHandler> MessageHandlers = new HandlerDictionary<Type, MessageHandler>();
-        private Dictionary<int, WaitingCommandCall> WaitingCalls = new Dictionary<int, WaitingCommandCall>();
+        private ConcurrentDictionary<int, WaitingCommandCall> WaitingCalls = new ConcurrentDictionary<int, WaitingCommandCall>();
 
         private Random Random = new Random();
 
@@ -46,6 +47,36 @@ namespace Bursa
 
             MessageHandlers.Add(typeof(CommandResult), HandleCommandResult);
             MessageHandlers.Add(typeof(ClientHello), HandleClientHello);
+            MessageHandlers.Add(typeof(ListModules), HandleListModules);
+            MessageHandlers.Add(typeof(GetModuleInfo), HandleInfoRequest);
+        }
+
+        private async Task HandleInfoRequest(object sender, MessageHandlerEventArgs e)
+        {
+            var name = (e.Message as GetModuleInfo).ModuleName;
+
+            var module = Modules.FirstOrDefault(m => m.ClientHello.Name == name);
+            var info = new ModuleInfo();
+
+            if (module != null)
+            {
+                info.ClientHello = module.ClientHello;
+                info.Uptime = DateTime.UtcNow - module.Started;
+                info.Health = ModuleHealth.Healthy;
+            }
+
+            e.Connection.Send(info);
+        }
+
+        private async Task HandleListModules(object sender, MessageHandlerEventArgs e)
+        {
+            var response = new ModuleList()
+            {
+                Modules = Modules.Select(m => m.ClientHello.Name).ToList()
+            };
+
+            e.Connection.Send(response);
+            Console.WriteLine("hi");
         }
 
         private async Task HandleCommandResult(object sender, MessageHandlerEventArgs e)
@@ -66,7 +97,7 @@ namespace Bursa
                 SelfIdentifier = call.Message.SelfIdentifier
             };
 
-            WaitingCalls.Remove(result.CallId);
+            WaitingCalls.Remove(result.CallId, out WaitingCommandCall c);
 
             await call.Source.SendMessage(reply);
         }
@@ -81,6 +112,7 @@ namespace Bursa
                     {
                         CallId = Random.Next(),
                         Id = command.Id,
+                        Trigger = command.Triggers.First(t => t.Matches(msg.Contents)),
                         Message = msg
                     };
 

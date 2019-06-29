@@ -15,7 +15,18 @@ namespace Sopron.DataTypes
 
         public override bool Matches(string message)
         {
-            return message.Substring(1).StartsWith(Name);
+            if (message.Length == Name.Length + 1 &&
+                message.EndsWith(Name))
+                return true;
+
+            return message.Substring(1).StartsWith(Name + " ");
+        }
+
+        public override string RemoveMatch(string message)
+        {
+            if (message.Length == Name.Length + 1)
+                return "";
+            return message.Substring(Name.Length + 2);
         }
     }
 }

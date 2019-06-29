@@ -11,6 +11,7 @@ namespace Sopron.Messages
         public string Id { get; set; }
         public Message Message { get; set; }
         public int CallId { get; set; }
+        public Trigger Trigger { get; set; }
 
         public CommandNotification()
         {

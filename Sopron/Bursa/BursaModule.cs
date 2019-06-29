@@ -18,10 +18,10 @@ namespace Bursa
 
     public abstract class BursaModule
     {
-        public string HumanReadableName => "Default Bursa Module";
-        public string Name => "default-module";
-        public string Version => "1.0";
-        public string License => "MIT";
+        public abstract string HumanReadableName { get; }
+        public abstract string Name { get; }
+        public abstract string Version { get; }
+        public abstract string License { get; }
 
         public List<string> Capabilities = new List<string>()
         {
@@ -30,20 +30,18 @@ namespace Bursa
 
         private ServerHello ServerHello { get; set; }
 
-        public JsonConnection Connection { get; set; }
+        public IConnection Connection { get; set; }
         public Dictionary<string, Command> Commands = new Dictionary<string, Command>();
         public Dictionary<string, ReturningCommandHandler> CommandHandlers = new Dictionary<string, ReturningCommandHandler>();
 
-        private HandlerDictionary<Type, MessageHandler> MessageHandlers = new HandlerDictionary<Type, MessageHandler>();
+        internal HandlerDictionary<Type, MessageHandler> MessageHandlers = new HandlerDictionary<Type, MessageHandler>();
 
         private ManualResetEvent Connected = new ManualResetEvent(false);
-        private string Hostname { get; set; }
-        private int Port { get; set; }
+        private Uri ConnectionUri { get; set; }
 
         public BursaModule()
         {
             Initialize();
-
             MessageHandlers.Add(typeof(CommandNotification), HandleCommand);
         }
 
@@ -82,23 +80,41 @@ namespace Bursa
                     var temp_delegate = method.CreateDelegate(typeof(CommandHandler), this) as CommandHandler;
                     method_delegate = (s, e) => { temp_delegate(s, e); return null; };
                 }
-                else
+                else if (method.ReturnType == typeof(Task))
+                {
+                    var temp_delegate = method.CreateDelegate(typeof(Func<object, CommandHandlerEventArgs, Task>), this) as Func<object, CommandHandlerEventArgs, Task>;
+                    method_delegate = (s, e) => { temp_delegate(s, e).Wait(); return null; };
                     method_delegate = method.CreateDelegate(typeof(ReturningCommandHandler), this) as ReturningCommandHandler;
+                }
+                else if (method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
+                {
+                    var task_type = method.ReturnType;
+                    var func_type = typeof(Func<,,>).MakeGenericType(typeof(object), typeof(CommandHandlerEventArgs), task_type);
+
+                    var temp_delegate = method.CreateDelegate(func_type, this);
+                    method_delegate = (s, e) => { var task = temp_delegate.DynamicInvoke(s, e); return task_type.GetProperty("Result").GetValue(task); };
+                }
+                else
+                    continue;
 
                 CommandHandlers[unused_id] = method_delegate;
             }
         }
 
-        public async Task Connect(string hostname, int port)
+        public async Task Connect(Uri uri)
         {
-            Hostname = hostname;
-            Port = port;
+            ConnectionUri = uri;
 
-            var client = new TcpClient();
-            await client.ConnectAsync(hostname, port);
-            Connection = new JsonConnection(client);
+            switch (ConnectionUri.Scheme)
+            {
+                case "json":
+                    var client = new TcpClient();
+                    await client.ConnectAsync(ConnectionUri.Host, ConnectionUri.Port);
+                    Connection = new JsonConnection(client);
+                    break;
+            }
+
             Connection.Initialize();
-
             Connection.ConnectionClosed += HandleConnectionClosed;
         }
 
@@ -111,11 +127,11 @@ namespace Bursa
                 // attempt to reconnect
                 while (!Connected.WaitOne(0))
                 {
-                    try { Connection.Client.Close(); } catch { }
+                    try { Connection.Close(); } catch { }
                     //Thread.Sleep(5000);
                     try
                     {
-                        await Connect(Hostname, Port);
+                        await Connect(ConnectionUri);
                         await Handshake();
                     }
                     catch (Exception ex)
@@ -190,9 +206,47 @@ namespace Bursa
 
                 foreach(var handler in MessageHandlers[type])
                 {
-                    await handler(this, args);
+                    Task.Run(() => handler(this, args)).ConfigureAwait(false);
                 }
             }
+        }
+
+        public async Task Reply(Message msg, string reply)
+        {
+            var new_message = new Message()
+            {
+                Contents = reply,
+                RawContents = reply,
+                Context = msg.Context,
+                Location = msg.Location,
+                SelfIdentifier = msg.SelfIdentifier,
+                User = msg.SelfIdentifier,
+                Time = DateTime.UtcNow
+            };
+
+            await Connection.Send(new_message);
+        }
+
+        public async Task<T> SendWait<T>(object message)
+        {
+            var semaphore = new SemaphoreSlim(1);
+            T ret = default;
+            var return_type = typeof(T);
+
+            MessageHandler handler = null;
+            handler = async (s, e) =>
+            {
+                MessageHandlers.Remove(return_type, handler);
+                ret = (T)e.Message;
+                semaphore.Release();
+            };
+
+            MessageHandlers.Add(return_type, handler);
+            await Connection.Send(message);
+            await semaphore.WaitAsync(); // one for the handler to release, won't block
+            await semaphore.WaitAsync(); // one to hang until the above is released
+
+            return ret;
         }
     }
 
@@ -202,7 +256,9 @@ namespace Bursa
         public string Id => Notification.Id;
         public Message Message => Notification.Message;
         public string Context => Message.Context;
+        public Trigger Trigger => Notification.Trigger;
 
+        public string Arguments { get; set; }
         public string Contents => Message.Contents;
         public Uri Source => Message.Location;
         public Uri User => Message.User;
@@ -210,6 +266,7 @@ namespace Bursa
         public CommandHandlerEventArgs(CommandNotification notification)
         {
             Notification = notification;
+            Arguments = Trigger.RemoveMatch(Contents);
         }
     }
 

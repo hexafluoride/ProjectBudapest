@@ -8,5 +8,6 @@ namespace Sopron.DataTypes
     public abstract class Trigger
     {
         public abstract bool Matches(string message);
+        public abstract string RemoveMatch(string message);
     }
 }

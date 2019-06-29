@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Sopron.DataTypes;
@@ -14,23 +15,26 @@ namespace Bursa
             await Console.Out.WriteLineAsync(msg.Contents);
         }
 
-        public async Task<Message> GetMessage()
+        public Task<Message> GetMessage()
         {
-            Console.Write(">> ");
-            var line = await Console.In.ReadLineAsync();
-
-            var message = new Message()
+            return Task.Run(() => 
             {
-                Context = "CONTEXT_CONSOLE",
-                Contents = line,
-                RawContents = line,
-                Time = DateTime.Now,
-                Location = new Uri("console:///console"),
-                User = new Uri("console:///user"),
-                SelfIdentifier = new Uri("console:///console")
-            };
+                Console.Write(">> ");
+                var line = Console.ReadLine();
 
-            return message;
+                var message = new Message()
+                {
+                    Context = "CONTEXT_CONSOLE",
+                    Contents = line,
+                    RawContents = line,
+                    Time = DateTime.Now,
+                    Location = new Uri("console:///console"),
+                    User = new Uri("console:///user"),
+                    SelfIdentifier = new Uri("console:///console")
+                };
+
+                return message;
+            });
         }
 
         public void Initialize(JObject config)

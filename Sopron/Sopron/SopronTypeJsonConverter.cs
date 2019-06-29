@@ -75,7 +75,7 @@ namespace Sopron
                 //writer.WriteValue(property.ValueProvider.GetValue(value));
             }
             writer.WriteEndObject();
-
+            
             //var obj = JObject.FromObject(value, serializer);
             //obj["type"] = value.GetType().Name;
             //obj.WriteTo(writer);
